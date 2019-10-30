@@ -19,6 +19,9 @@ eureka:
 
 
 zuul:
+  SendErrorFilter:
+    error:
+      disable: true
   routes:
     auth:
       #以/auth开头的请求都会被转发到名称为FEBS-Auth的服务上
@@ -32,7 +35,7 @@ zuul:
       sensitiveHeaders: "*"
     test:
       path: /test/**
-      serviceId: FEBS-Server-test
+      serviceId: FEBS-Server-Test
       sensitiveHeaders: "*"
 
   #设置为true时，表示开启重试机制

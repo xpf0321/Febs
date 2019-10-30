@@ -25,6 +25,13 @@
             <artifactId>febs-common</artifactId>
             <version>1.0-SNAPSHOT</version>
         </dependency>
+        <!--common中导入成功后可去除-->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <version>1.16.10</version>
+            <scope>provided</scope>
+        </dependency>
         <dependency>
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-starter-netflix-zuul</artifactId>

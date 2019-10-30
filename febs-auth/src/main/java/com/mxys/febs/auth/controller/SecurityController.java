@@ -1,7 +1,7 @@
 package com.mxys.febs.auth.controller;
 
-import com.mxys.febs.auth.entity.FebsResponse;
-import com.mxys.febs.auth.exception.FebsAuthException;
+import com.mxys.febs.common.entity.FebsResponse;
+import com.mxys.febs.common.exception.FebsAuthException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.oauth2.provider.token.ConsumerTokenServices;
 import org.springframework.util.StringUtils;

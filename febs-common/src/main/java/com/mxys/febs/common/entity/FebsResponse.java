@@ -1,4 +1,4 @@
-package com.mxys.febs.auth.entity;
+package com.mxys.febs.common.entity;
 
 import java.util.HashMap;
 

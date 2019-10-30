@@ -13,7 +13,7 @@
     <artifactId>febs-common</artifactId>
     <name>FEBS-common</name>
     <description>FEBS-common 通用模块</description>
-
+    <packaging>jar</packaging>
     <dependencies>
         <!-- https://mvnrepository.com/artifact/org.projectlombok/lombok -->
         <dependency>
@@ -22,7 +22,11 @@
             <version>1.16.10</version>
             <scope>provided</scope>
         </dependency>
-
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-configuration-processor</artifactId>
+            <optional>true</optional>
+        </dependency>
         <dependency>
             <groupId>com.alibaba</groupId>
             <artifactId>fastjson</artifactId>

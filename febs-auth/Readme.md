@@ -75,3 +75,147 @@ PostMan测试:
 
     值为Basic加空格加(client_id:client_secret加密后的数据)（就是在FebsAuthorizationServerConfigurer类configure(ClientDetailsServiceConfigurer clients)方法中定义的client和secret）经过base64加密后的值（可以使用http://tool.oschina.net/encrypt?type=3）:
 
+
+
+
+-----------------------------------------------------------------------------------------------------------------------
+                                                配置化优化
+在搭建febs-auth的时候，我们在认证服务器配置类FebsAuthorizationServerConfigurer里使用硬编码的形式配置了client_id，client_secret等信息。硬编码的形式不利于代码维护和升级，所以我们需要将它改造为可配置的方式。
+1.在febs-auth模块的cc.mrbird.febs.auth路径下新建properties包，然后在该包下新建一个Client配置类FebsClientsProperties：
+            private String client;
+            private String secret;
+            private String grantType = "password,authorization_code,refresh_token";
+            private String scope = "all";
+    client对应client_id，secret对应client_secret，grantType对应当前令牌支持的认证类型，scope对应认证范围。grantType和scope包含默认值。
+
+2.接着新建一个和Auth相关的配置类FebsAuthProperties：
+            @Data
+            @SpringBootConfiguration
+            @PropertySource(value = {"classpath:febs-auth.properties"})
+            @ConfigurationProperties(prefix = "febs.auth")
+            public class FebsAuthProperties {
+
+                private FebsClientsProperties[] clients = {};
+                private int accessTokenValiditySeconds = 60 * 60 * 24;
+                private int refreshTokenValiditySeconds = 60 * 60 * 24 * 7;
+            }
+
+    clients属性类型为上面定义的FebsClientsProperties，因为一个认证服务器可以根据多种Client来发放对应的令牌，所以这个属性使用的是数组形式；accessTokenValiditySeconds用于指定access_token的有效时间，默认值为60 * 60 * 24秒；refreshTokenValiditySeconds用于指定refresh_token的有效时间，默认值为60 * 60 * 24 * 7秒。
+    @PropertySource(value = {"classpath:febs-auth.properties"})用于指定读取的配置文件路径；
+    @ConfigurationProperties(prefix = "febs.auth")指定了要读取的属性的统一前缀名称为febs.auth；
+    @SpringBootConfiguration实质上为@Component的派生注解，用于将FebsAuthProperties纳入到IOC容器中。
+
+3.自定义配置类还需引入spring-boot-configuration-processor依赖，因为这个依赖会在多个微服务子系统里使用到，所以将其添加到febs-common的pom文件中：
+            <dependency>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-configuration-processor</artifactId>
+                <optional>true</optional>
+            </dependency>
+
+4.接下来在febs-auth的resources路径下新建配置文件febs-auth.properties：
+            febs.auth.accessTokenValiditySeconds=86400
+            febs.auth.refreshTokenValiditySeconds=604800
+
+            febs.auth.clients[0].client=febs
+            febs.auth.clients[0].secret=123456
+            febs.auth.clients[0].grantType=password,authorization_code,refresh_token
+            febs.auth.clients[0].scope=all
+   去除febs.auth前缀，剩下部分和FebsAuthProperties配置类属性名称对应上的话，就会被读取到FebsAuthProperties相应的属性中。数组形式的属性值使用[]加元素下标表示，具体可以参考properties文件的语法
+
+
+5.定义好FebsAuthProperties配置类后，我们就可以在认证服务器配置类FebsAuthorizationServerConfigurer中注入使用了，改造FebsAuthorizationServerConfigurer
+             @Autowired
+             private FebsAuthProperties authProperties;
+             @Override
+                 public void configure(ClientDetailsServiceConfigurer clients) throws Exception {
+                     FebsClientsProperties[] clientsArray = authProperties.getClients();
+                     InMemoryClientDetailsServiceBuilder builder = clients.inMemory();
+                     if (ArrayUtils.isNotEmpty(clientsArray)) {
+                         for (FebsClientsProperties client : clientsArray) {
+                             if (StringUtils.isBlank(client.getClient())) {
+                                 throw new Exception("client不能为空");
+                             }
+                             if (StringUtils.isBlank(client.getSecret())) {
+                                 throw new Exception("secret不能为空");
+                             }
+                             String[] grantTypes = StringUtils.splitByWholeSeparatorPreserveAllTokens(client.getGrantType(), ",");
+                             builder.withClient(client.getClient())
+                                     .secret(passwordEncoder.encode(client.getSecret()))
+                                     .authorizedGrantTypes(grantTypes)
+                                     .scopes(client.getScope());
+                         }
+                     }
+                 }
+             @Primary
+                 @Bean
+                 public DefaultTokenServices defaultTokenServices() {
+                        DefaultTokenServices tokenServices = new DefaultTokenServices();
+                        tokenServices.setTokenStore(tokenStore());
+                        tokenServices.setSupportRefreshToken(true);
+                        tokenServices.setAccessTokenValiditySeconds(authProperties.getAccessTokenValiditySeconds());
+                        tokenServices.setRefreshTokenValiditySeconds(authProperties.getRefreshTokenValiditySeconds());
+                        return tokenServices;
+                 }
+    configure(ClientDetailsServiceConfigurer clients)方法由原先硬编码的形式改造成了从配置文件读取配置的形式，并且判断了client和secret不能为空；
+    .secret(passwordEncoder.encode(client.getSecret()))需要加密,否则报：Encoded password does not look like BCrypt
+    defaultTokenServices方法指定有效时间也从原先硬编码的形式改造成了从配置文件读取配置的形式。
+
+---------------------------------------------------------
+                        认证异常翻译
+1.定义一个异常翻译器，将这些认证类型异常翻译为友好的格式。在febs-auth模块cc.mrbird.febs.auth路径下新建translator包，然后在该包下新建FebsWebResponseExceptionTranslator：
+        @Slf4j
+        @Component
+        public class FebsWebResponseExceptionTranslator implements WebResponseExceptionTranslator {
+
+            @Override
+            public ResponseEntity translate(Exception e) {
+                ResponseEntity.BodyBuilder status = ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR);
+                FebsResponse response = new FebsResponse();
+                String message = "认证失败";
+                log.error(message, e);
+                if (e instanceof UnsupportedGrantTypeException) {
+                    message = "不支持该认证类型";
+                    return status.body(response.message(message));
+                }
+                if (e instanceof InvalidGrantException) {
+                    if (StringUtils.containsIgnoreCase(e.getMessage(), "Invalid refresh token")) {
+                        message = "refresh token无效";
+                        return status.body(response.message(message));
+                    }
+                    if (StringUtils.containsIgnoreCase(e.getMessage(), "locked")) {
+                        message = "用户已被锁定，请联系管理员";
+                        return status.body(response.message(message));
+                    }
+                    message = "用户名或密码错误";
+                    return status.body(response.message(message));
+                }
+                return status.body(response.message(message));
+            }
+        }
+
+2.让这个异常翻译器生效，我们还需在认证服务器配置类FebsAuthorizationServerConfigurer的configure(AuthorizationServerEndpointsConfigurer endpoints)方法里指定它：
+
+  @Configuration
+  @EnableAuthorizationServer
+  public class FebsAuthorizationServerConfigurer extends AuthorizationServerConfigurerAdapter {
+
+      ......
+
+      @Autowired
+      private FebsWebResponseExceptionTranslator exceptionTranslator;
+
+      ......
+
+      @Override
+      @SuppressWarnings("all")
+      public void configure(AuthorizationServerEndpointsConfigurer endpoints) {
+          endpoints.tokenStore(tokenStore())
+                  .userDetailsService(userDetailService)
+                  .authenticationManager(authenticationManager)
+                  .tokenServices(defaultTokenServices())
+                  .exceptionTranslator(exceptionTranslator);
+      }
+      ......
+  }
+
+

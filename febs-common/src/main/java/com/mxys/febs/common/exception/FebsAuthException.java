@@ -1,4 +1,4 @@
-package com.mxys.febs.auth.exception;
+package com.mxys.febs.common.exception;
 
 public class FebsAuthException  extends Exception{
 
