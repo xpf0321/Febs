@@ -1,0 +1,37 @@
+server:
+  port: 8101
+
+
+spring:
+  application:
+    name: FEBS-auth
+  redis:
+    database: 0
+    host: 127.0.0.1
+    port: 6379
+    jedis:
+      pool:
+        min-idle: 8
+        max-idle: 500
+        max-active: 2000
+        max-wait: 10000
+    timeout: 5000
+
+
+eureka:
+  instance:
+    #向Eureka 服务端发送心跳的间隔时间，单位为秒，用于服务续约。这里配置为20秒，即每隔20秒向febs-register发送心跳，表明当前服务没有宕机
+    lease-renewal-interval-in-seconds: 20
+  client:
+    #为true时表示从Eureka 服务端获取注册的服务信息；
+    fetch-registry: true
+    #为true时表示将当前服务注册到Eureak服务端；
+    register-with-eureka: true
+    #新实例信息的变化到Eureka服务端的间隔时间，单位为秒
+    instance-info-replication-interval-seconds: 30
+    #默认值为30秒，即每30秒去Eureka服务端上获取服务并缓存；
+    registry-fetch-interval-seconds: 30
+    service-url:
+      defaultZone: http://febs:123123@localhost:8001/register/eureka/
+
+
