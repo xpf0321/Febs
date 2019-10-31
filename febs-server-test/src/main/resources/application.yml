@@ -21,3 +21,7 @@ security:
     resource:
       user-info-uri: http://localhost:8301/auth/user
       id: ${spring.application.name}
+#要让Feign的回退生效，需要配置,因为Feign的回退功能是基于Hystrix实现的，所以需要开启它。
+feign:
+  hystrix:
+    enabled: true

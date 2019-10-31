@@ -26,7 +26,7 @@ zuul:
     auth:
       #以/auth开头的请求都会被转发到名称为FEBS-Auth的服务上
       path: /auth/**
-      serviceId: FEBS-auth
+      serviceId: FEBS-Auth
       #由于我们需要在请求头中携带令牌，所以sensitiveHeaders设置为*，表示不过滤请求头信息，即请求的请求头信息将原封不动的转发出去
       sensitiveHeaders: "*"
     system:
